@@ -35,3 +35,15 @@ jobs:
         name: LogSplitor-${{ github.event.inputs.version }}
         path: bin/Release/net8.0-windows/win-x64/publish/LogSplitor.exe
         retention-days: 90
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: v${{ github.event.inputs.version }}
+        tag_name: v${{ github.event.inputs.version }}
+        files: bin/Release/net8.0-windows/win-x64/publish/LogSplitor.exe
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
