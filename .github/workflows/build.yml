@@ -1,12 +1,9 @@
 name: Build Windows Executable
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: '版本号'
-        required: true
-        default: '1.0.0'
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -20,6 +17,11 @@ jobs:
       with:
         dotnet-version: '8.0.x'
     
+    - name: Get version from tag
+      id: get_version
+      run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      shell: bash
+    
     - name: Restore dependencies
       run: dotnet restore
     
@@ -27,20 +29,19 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     
     - name: Publish
-      run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:Version=${{ github.event.inputs.version }}
+      run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:Version=${{ steps.get_version.outputs.version }}
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: LogSplitor-${{ github.event.inputs.version }}
+        name: LogSplitor-${{ steps.get_version.outputs.version }}
         path: bin/Release/net8.0-windows/win-x64/publish/LogSplitor.exe
         retention-days: 90
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        name: v${{ github.event.inputs.version }}
-        tag_name: v${{ github.event.inputs.version }}
+        name: ${{ github.ref_name }}
         files: bin/Release/net8.0-windows/win-x64/publish/LogSplitor.exe
         draft: false
         prerelease: false
