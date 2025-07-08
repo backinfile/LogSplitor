@@ -5,7 +5,6 @@
         private string logFilePath;
         private string logDirectory;
         private string outputDirectory;
-        private bool isDirectoryMode;
 
         public Form1()
         {
@@ -19,18 +18,7 @@
             // 加载上次的配置
             if (!string.IsNullOrEmpty(Properties.Settings.Default.LastInputPath))
             {
-                if (Properties.Settings.Default.IsDirectoryMode)
-                {
-                    logDirectory = Properties.Settings.Default.LastInputPath;
-                    textBox1.Text = logDirectory;
-                    isDirectoryMode = true;
-                }
-                else
-                {
-                    logFilePath = Properties.Settings.Default.LastInputPath;
-                    textBox1.Text = logFilePath;
-                    isDirectoryMode = false;
-                }
+                textBox1.Text = Properties.Settings.Default.LastInputPath;
             }
 
             // 加载筛选条件
@@ -41,6 +29,9 @@
 
             // 加载匹配模式
             checkBox1.Checked = Properties.Settings.Default.LastMatchAllCondition;
+            
+            // 加载大小写敏感设置
+            checkBox2.Checked = Properties.Settings.Default.LastCaseSensitive;
 
             // 加载输出目录
             if (!string.IsNullOrEmpty(Properties.Settings.Default.LastOutputPath))
@@ -52,15 +43,17 @@
 
         private void SaveSettings()
         {
-            // 保存输入路径和模式
+            // 保存输入路径
             Properties.Settings.Default.LastInputPath = textBox1.Text;
-            Properties.Settings.Default.IsDirectoryMode = isDirectoryMode;
 
             // 保存筛选条件
             Properties.Settings.Default.LastFilterConditions = textBox2.Text;
 
             // 保存匹配模式
             Properties.Settings.Default.LastMatchAllCondition = checkBox1.Checked;
+            
+            // 保存大小写敏感设置
+            Properties.Settings.Default.LastCaseSensitive = checkBox2.Checked;
 
             // 保存输出目录
             Properties.Settings.Default.LastOutputPath = outputDirectory;
@@ -110,7 +103,6 @@
                 {
                     logFilePath = openFileDialog.FileName;
                     textBox1.Text = logFilePath;
-                    isDirectoryMode = false;
 
                     // 设置默认输出目录为输入文件所在目录
                     outputDirectory = Path.GetDirectoryName(logFilePath);
@@ -127,7 +119,6 @@
                 {
                     logDirectory = folderDialog.SelectedPath;
                     textBox1.Text = logDirectory;
-                    isDirectoryMode = true;
 
                     // 设置默认输出目录为选择的目录
                     outputDirectory = logDirectory;
@@ -171,6 +162,7 @@
             outputDirectory = textBox4.Text;
             string[] filters = textBox2.Text.Split('#');
             bool matchAll = checkBox1.Checked;
+            bool caseSensitive = checkBox2.Checked;
 
             button1.Enabled = false;
             button2.Enabled = false;
@@ -180,16 +172,18 @@
             textBox2.Enabled = false;
             textBox4.Enabled = false;
             checkBox1.Enabled = false;
+            checkBox2.Enabled = false;
 
             try
             {
-                if (isDirectoryMode)
+                string inputPath = textBox1.Text;
+                if (Directory.Exists(inputPath))
                 {
-                    await Task.Run(() => ProcessDirectory(filters, matchAll));
+                    await Task.Run(() => ProcessDirectory(inputPath, filters, matchAll, caseSensitive));
                 }
                 else
                 {
-                    await Task.Run(() => ProcessSingleFile(logFilePath, filters, matchAll));
+                    await Task.Run(() => ProcessSingleFile(inputPath, filters, matchAll, null, caseSensitive));
                 }
                 MessageBox.Show("日志切割完成！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -207,13 +201,14 @@
                 textBox2.Enabled = true;
                 textBox4.Enabled = true;
                 checkBox1.Enabled = true;
+                checkBox2.Enabled = true;
             }
         }
 
-        private void ProcessDirectory(string[] filters, bool matchAll)
+        private void ProcessDirectory(string directoryPath, string[] filters, bool matchAll, bool caseSensitive)
         {
-            AppendLog($"开始处理目录：{logDirectory}");
-            var allFiles = Directory.GetFiles(logDirectory, "*.*", SearchOption.AllDirectories)
+            AppendLog($"开始处理目录：{directoryPath}");
+            var allFiles = Directory.GetFiles(directoryPath, "*.*", SearchOption.AllDirectories)
                 .Select(file => new { Path = file, ModifiedTime = File.GetLastWriteTime(file) })
                 .OrderBy(f => f.ModifiedTime)
                 .ToList();
@@ -225,14 +220,14 @@
             Directory.CreateDirectory(outputDirectory);
 
             int totalMatchCount = 0;
-            using (StreamWriter writer = new StreamWriter(outputFilePath))
+            using (StreamWriter writer = new StreamWriter(outputFilePath, append: true))
             {
                 for (int i = 0; i < allFiles.Count; i++)
                 {
                     var file = allFiles[i];
                     string fileName = Path.GetFileName(file.Path);
                     AppendLog($"\n正在处理第 {i + 1}/{allFiles.Count} 个文件：{fileName}");
-                    int fileMatchCount = ProcessSingleFile(file.Path, filters, matchAll, writer);
+                    int fileMatchCount = ProcessSingleFile(file.Path, filters, matchAll, writer, caseSensitive);
                     totalMatchCount += fileMatchCount;
                 }
             }
@@ -241,16 +236,30 @@
             AppendLog($"输出文件：{outputFilePath}");
         }
 
-        private int ProcessSingleFile(string filePath, string[] filters, bool matchAll, StreamWriter writer = null)
+        private int ProcessSingleFile(string filePath, string[] filters, bool matchAll, StreamWriter writer = null, bool caseSensitive = true)
         {
             try
             {
                 int matchCount = 0;
                 string fileName = Path.GetFileName(filePath);
+                bool isDirectory = Directory.Exists(filePath);
+                StreamWriter localWriter = null;
+
                 using (StreamReader reader = new StreamReader(filePath))
                 {
                     string line;
                     int lineCount = 0;
+
+                    // 如果是单文件模式且没有提供 writer，创建新的输出文件
+                    if (!isDirectory && writer == null)
+                    {
+                        Directory.CreateDirectory(outputDirectory);
+                        string outputFilePath = Path.Combine(outputDirectory, 
+                            $"{Path.GetFileNameWithoutExtension(filePath)}_filtered_{DateTime.Now:yyyyMMddHHmmss}.txt");
+                        localWriter = new StreamWriter(outputFilePath);
+                        writer = localWriter;
+                        AppendLog($"输出文件：{outputFilePath}");
+                    }
 
                     while ((line = reader.ReadLine()) != null)
                     {
@@ -260,33 +269,24 @@
                             AppendLog($"处理文件 {fileName}：已处理 {lineCount} 行...");
                         }
 
+                        string compareLine = caseSensitive ? line : line.ToUpper();
+                        string[] compareFilters = caseSensitive ? filters : filters.Select(f => f.ToUpper()).ToArray();
+
                         bool shouldWrite = matchAll ?
-                            filters.All(filter => line.Contains(filter)) :
-                            filters.Any(filter => line.Contains(filter));
+                            compareFilters.All(filter => compareLine.Contains(filter)) :
+                            compareFilters.Any(filter => compareLine.Contains(filter));
 
                         if (shouldWrite)
                         {
-                            if (isDirectoryMode)
-                            {
-                                writer?.WriteLine(line);
-                            }
-                            else
-                            {
-                                // 单文件模式，需要创建新的输出文件
-                                if (writer == null)
-                                {
-                                    Directory.CreateDirectory(outputDirectory);
-                                    string outputFilePath = Path.Combine(outputDirectory, 
-                                        $"{Path.GetFileNameWithoutExtension(filePath)}_filtered_{DateTime.Now:yyyyMMddHHmmss}.txt");
-                                    using (var singleFileWriter = new StreamWriter(outputFilePath))
-                                    {
-                                        singleFileWriter.WriteLine(line);
-                                    }
-                                    AppendLog($"输出文件：{outputFilePath}");
-                                }
-                            }
+                            writer?.WriteLine(line);
                             matchCount++;
                         }
+                    }
+
+                    // 如果使用了本地 writer，关闭它
+                    if (localWriter != null)
+                    {
+                        localWriter.Dispose();
                     }
 
                     AppendLog($"文件 {fileName} 处理完成！共处理 {lineCount} 行，匹配 {matchCount} 行。");
@@ -299,7 +299,6 @@
                 throw;
             }
         }
-
 
         private void AppendLog(string message)
         {

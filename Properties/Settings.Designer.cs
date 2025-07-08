@@ -62,13 +62,13 @@ namespace LogSplitor.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool IsDirectoryMode {
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool LastCaseSensitive {
             get {
-                return ((bool)(this["IsDirectoryMode"]));
+                return ((bool)(this["LastCaseSensitive"]));
             }
             set {
-                this["IsDirectoryMode"] = value;
+                this["LastCaseSensitive"] = value;
             }
         }
     }

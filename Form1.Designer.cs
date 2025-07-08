@@ -40,6 +40,7 @@
             button3 = new Button();
             button4 = new Button();
             button5 = new Button();
+            checkBox2 = new CheckBox();
             SuspendLayout();
             // 
             // button1
@@ -147,11 +148,22 @@
             button5.Text = "打开输出目录";
             button5.UseVisualStyleBackColor = true;
             // 
+            // checkBox2
+            // 
+            checkBox2.AutoSize = true;
+            checkBox2.Location = new Point(117, 117);
+            checkBox2.Name = "checkBox2";
+            checkBox2.Size = new Size(87, 21);
+            checkBox2.TabIndex = 13;
+            checkBox2.Text = "大小写敏感";
+            checkBox2.UseVisualStyleBackColor = true;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 17F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(579, 515);
+            Controls.Add(checkBox2);
             Controls.Add(button5);
             Controls.Add(button4);
             Controls.Add(button3);
@@ -184,5 +196,6 @@
         private Button button3;
         private Button button4;
         private Button button5;
+        private CheckBox checkBox2;
     }
 }
