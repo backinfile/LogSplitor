@@ -30,7 +30,8 @@ jobs:
       run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:Version=${{ github.event.inputs.version }}
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: LogSplitor-${{ github.event.inputs.version }}
         path: bin/Release/net8.0-windows/win-x64/publish/LogSplitor.exe
+        retention-days: 90
